@@ -10,5 +10,5 @@ pip install -r requirements.txt
 
 ## Execução
 ```
-py index.py
+python index.py
 ```
