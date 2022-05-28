@@ -8,7 +8,7 @@ import pdfplumber
 from tqdm import tqdm
 
 pdf_name = 'Anexo_I_Rol_2021RN_465.2021_RN473_RN478_RN480_RN513_RN536'
-pdf_path = f'{pdf_name}.pdf'
+pdf_path = os.path.join(os.path.dirname(__file__), f'{pdf_name}.pdf')
 
 print('Scaneando PDF...')
 pdf = pdfplumber.open(pdf_path)
