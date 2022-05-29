@@ -41,7 +41,7 @@ date = datetime.now().strftime('%d_%m_%Y_%H_%M_%S')
 
 print('Iniciando a criação do arquivo zip e csv...')
 
-zip_name = f'Anexo_I_Rol_Procedimentos_Eventos_Saúde_{date}.zip'
+zip_name = f'Teste_3_Ronaldo_Borges_Guimarães_{date}.zip'
 zip_path = os.path.join(os.getcwd(), zip_name)
 csv_name = f'{pdf_name}.csv'
 
