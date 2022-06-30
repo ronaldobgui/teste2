@@ -2,7 +2,6 @@ from datetime import datetime
 import os
 from pathlib import Path
 import re
-from tempfile import NamedTemporaryFile
 from zipfile import ZipFile
 import pdfplumber
 from tqdm import tqdm
@@ -13,61 +12,74 @@ def formatText(text):
     return f'"{value}"' if ";" in value else value
 
 
-def writeTempFile(bytes):
-    file = NamedTemporaryFile(delete=False)
-    file.write(bytes)
-    file.close()
-    return file.name
-
-
-def converteAnexoParaCsv(pdf_path, replace_list):
-    pdf_name = Path(pdf_path).stem
-
+def convertPdfToCsv(pdf_file_path, replace_list):
     print('Scaneando PDF...')
-    pdf = pdfplumber.open(pdf_path)
+    with pdfplumber.open(pdf_file_path) as pdf:
+        print('Carregando legenda...')
+        first_page = pdf.pages[3]
+        first_page_text = first_page.extract_text()
 
-    print('Carregando Legenda...')
-    first_page = pdf.pages[3]
-    text = first_page.extract_text()
+        legenda = {}
+        key_values_list = re.findall(
+            r'([A-Z]+):\s+(.+?)\s+(?:(?=[A-Z]+:)|\d+)', first_page_text)
+        for key_value in key_values_list:
+            legenda[key_value[0]] = key_value[1]
 
-    legenda = {}
-    pares = re.findall(r'([A-Z]+):\s+(.+?)\s+(?:(?=[A-Z]+:)|\d+)', text)
-    for par in pares:
-        legenda[par[0]] = par[1]
+        print('Gerando arquivo csv...')
+        csv_rows = []
+        csv_column_titles = []
+        for cell in first_page.extract_table()[0]:
+            formatted_text = formatText(cell)
+            csv_column_titles.append(formatted_text)
+        csv_rows.append(';'.join(csv_column_titles))
 
-    date = datetime.now().strftime('%d_%m_%Y_%H_%M_%S')
+        def formatTextAndReplace(cell):
+            if cell in replace_list:
+                cell = legenda[cell]
+            return formatText(cell)
 
-    print('Iniciando a criação do arquivo zip e csv...')
-
-    zip_name = f'Teste_3_Ronaldo_Borges_Guimarães_{date}.zip'
-    zip_path = os.path.join(os.getcwd(), zip_name)
-    csv_name = f'{pdf_name}.csv'
-
-    new_list = []
-    columns = []
-    for col in first_page.extract_table()[0]:
-        columns.append(formatText(col))
-    new_list.append(';'.join(columns))
-
-    with ZipFile(zip_path, 'w') as zip:
         for page in tqdm(pdf.pages[3:], ascii=True):
-            table = page.extract_table()
-            for row in table[1:]:
-                new_row = []
-                for i in range(len(row)):
-                    text = row[i]
-                    if text in replace_list:
-                        text = legenda[text]
-                    new_row.append(formatText(text))
-                new_list.append(';'.join(new_row))
-        csv_text = '\n'.join(new_list)
-        temp_name = writeTempFile(str.encode(csv_text, encoding='utf-8'))
-        zip.write(temp_name, csv_name)
-        os.unlink(temp_name)
+            rows = page.extract_table()
+            # ignora a que contém os títulos
+            for row in rows[1:]:
+                new_row = map(formatTextAndReplace, row)
+                csv_rows.append(';'.join(new_row))
+
+        return '\n'.join(csv_rows)
+
+
+def saveZipFromTextData(file_name, text_data):
+    date = datetime.now().strftime('%d_%m_%Y_%H_%M_%S')
+    zip_name = f'Teste_2_Ronaldo_Borges_Guimarães_{date}.zip'
+    zip_path = os.path.join(os.getcwd(), zip_name)
+
+    try:
+        with ZipFile(zip_path, 'w') as zip:
+            zip.writestr(file_name, text_data)
+    except:
+        if(os.path.exists(zip_path)):
+            os.unlink(zip_path)
+
+        raise Exception('Erro ao salvar arquivo zip...')
+
     print(f'Arquivo salvo em: "{zip_path}"')
 
 
-converteAnexoParaCsv(
-    pdf_path='Anexo_I_Rol_2021RN_465.2021_RN473_RN478_RN480_RN513_RN536.pdf',
+def generateCsvZipFromPdf(pdf_file_path, replace_list):
+    try:
+        if(os.path.exists(pdf_file_path) == False):
+            raise Exception('Anexo não encontrado...')
+
+        pdf_name = Path(pdf_file_path).stem
+        csv_file_name = f'{pdf_name}.csv'
+        csv_data_text = convertPdfToCsv(pdf_file_path, replace_list)
+        saveZipFromTextData(csv_file_name, csv_data_text)
+
+    except Exception as e:
+        print(f'Erro: {e}')
+
+
+generateCsvZipFromPdf(
+    pdf_file_path='Anexo_I_Rol_2021RN_465.2021_RN473_RN478_RN480_RN513_RN536.pdf',
     replace_list=['OD', 'AMB']
 )
